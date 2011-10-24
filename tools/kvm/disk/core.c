@@ -13,7 +13,7 @@ struct disk_image *disk_image__new(int fd, u64 size, struct disk_image_operation
 
 	disk->fd	= fd;
 	disk->size	= size;
-	disk->ops	= ops;
+	disk->ops	= *ops;
 
 	if (use_mmap == DISK_IMAGE_MMAP) {
 		/*
@@ -96,8 +96,8 @@ error:
 
 int disk_image__flush(struct disk_image *disk)
 {
-	if (disk->ops->flush)
-		return disk->ops->flush(disk);
+	if (disk->ops.flush)
+		return disk->ops.flush(disk);
 
 	return fsync(disk->fd);
 }
@@ -108,8 +108,8 @@ int disk_image__close(struct disk_image *disk)
 	if (!disk)
 		return 0;
 
-	if (disk->ops->close)
-		return disk->ops->close(disk);
+	if (disk->ops.close)
+		return disk->ops.close(disk);
 
 	if (close(disk->fd) < 0)
 		pr_warning("close() failed");
@@ -139,21 +139,21 @@ ssize_t disk_image__read(struct disk_image *disk, u64 sector, const struct iovec
 	if (debug_iodelay)
 		msleep(debug_iodelay);
 
-	if (disk->ops->read_sector_iov) {
+	if (disk->ops.read_sector_iov) {
 		/*
 		 * Try mulitple buffer based operation first
 		 */
-		total		= disk->ops->read_sector_iov(disk, sector, iov, iovcount);
+		total		= disk->ops.read_sector_iov(disk, sector, iov, iovcount);
 		if (total < 0) {
 			pr_info("disk_image__read error: total=%ld\n", (long)total);
 			return -1;
 		}
-	} else if (disk->ops->read_sector) {
+	} else if (disk->ops.read_sector) {
 		/*
 		 * Fallback to single buffer based operation
 		 */
 		while (iovcount--) {
-			nr 	= disk->ops->read_sector(disk, sector, iov->iov_base, iov->iov_len);
+			nr 	= disk->ops.read_sector(disk, sector, iov->iov_base, iov->iov_len);
 			if (nr != (ssize_t)iov->iov_len) {
 				pr_info("disk_image__read error: nr = %ld iov_len=%ld\n", (long)nr, (long)iov->iov_len);
 				return -1;
@@ -180,21 +180,21 @@ ssize_t disk_image__write(struct disk_image *disk, u64 sector, const struct iove
 	if (debug_iodelay)
 		msleep(debug_iodelay);
 
-	if (disk->ops->write_sector_iov) {
+	if (disk->ops.write_sector_iov) {
 		/*
 		 * Try writev based operation first
 		 */
-		total = disk->ops->write_sector_iov(disk, sector, iov, iovcount);
+		total = disk->ops.write_sector_iov(disk, sector, iov, iovcount);
 		if (total < 0) {
 			pr_info("disk_image__write error: total=%ld\n", (long)total);
 			return -1;
 		}
-	} else if (disk->ops->write_sector) {
+	} else if (disk->ops.write_sector) {
 		/*
 		 * Fallback to single buffer based operation
 		 */
 		while (iovcount--) {
-			nr	 = disk->ops->write_sector(disk, sector, iov->iov_base, iov->iov_len);
+			nr	 = disk->ops.write_sector(disk, sector, iov->iov_base, iov->iov_len);
 			if (nr != (ssize_t)iov->iov_len) {
 				pr_info("disk_image__write error: nr=%ld iov_len=%ld\n", (long)nr, (long)iov->iov_len);
 				return -1;

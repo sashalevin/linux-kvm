@@ -50,7 +50,7 @@ struct disk_image_operations {
 struct disk_image {
 	int				fd;
 	u64				size;
-	struct disk_image_operations	*ops;
+	struct disk_image_operations	ops;
 	void				*priv;
 };
 
