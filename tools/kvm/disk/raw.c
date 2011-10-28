@@ -1,19 +1,25 @@
 #include "kvm/disk-image.h"
 
+#include <libaio.h>
+
 ssize_t raw_image__read_sector(struct disk_image *disk, u64 sector, const struct iovec *iov,
 				int iovcount, void *param)
 {
+	struct iocb iocb;
 	u64 offset = sector << SECTOR_SHIFT;
 
-	return preadv_in_full(disk->fd, iov, iovcount, offset);
+	return aio_preadv(disk->ctx, &iocb, disk->fd, iov, iovcount, offset,
+				disk->evt, param);
 }
 
 ssize_t raw_image__write_sector(struct disk_image *disk, u64 sector, const struct iovec *iov,
 				int iovcount, void *param)
 {
+	struct iocb iocb;
 	u64 offset = sector << SECTOR_SHIFT;
 
-	return pwritev_in_full(disk->fd, iov, iovcount, offset);
+	return aio_pwritev(disk->ctx, &iocb, disk->fd, iov, iovcount, offset,
+				disk->evt, param);
 }
 
 ssize_t raw_image__read_sector_mmap(struct disk_image *disk, u64 sector, const struct iovec *iov,
@@ -72,13 +78,13 @@ static struct disk_image_operations raw_image_regular_ops = {
 
 struct disk_image *raw_image__probe(int fd, struct stat *st, bool readonly)
 {
+	struct disk_image *disk;
 
 	if (readonly) {
 		/*
 		 * Use mmap's MAP_PRIVATE to implement non-persistent write
 		 * FIXME: This does not work on 32-bit host.
 		 */
-		struct disk_image *disk;
 		struct disk_image_operations ro_ops = {
 			.read_sector	= raw_image__read_sector_mmap,
 			.write_sector	= raw_image__write_sector_mmap,
@@ -90,6 +96,8 @@ struct disk_image *raw_image__probe(int fd, struct stat *st, bool readonly)
 			ro_ops = raw_image_regular_ops;
 			ro_ops.write_sector = NULL;
 			disk = disk_image__new(fd, st->st_size, &ro_ops, DISK_IMAGE_REGULAR);
+			if (disk)
+				disk->async = 1;
 		}
 
 		return disk;
@@ -97,6 +105,9 @@ struct disk_image *raw_image__probe(int fd, struct stat *st, bool readonly)
 		/*
 		 * Use read/write instead of mmap
 		 */
-		return disk_image__new(fd, st->st_size, &raw_image_regular_ops, DISK_IMAGE_REGULAR);
+		disk = disk_image__new(fd, st->st_size, &raw_image_regular_ops, DISK_IMAGE_REGULAR);
+		if (disk)
+			disk->async = 1;
+		return disk;
 	}
 }

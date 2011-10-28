@@ -2,7 +2,6 @@
 
 #include "kvm/virtio-pci-dev.h"
 #include "kvm/disk-image.h"
-#include "kvm/virtio.h"
 #include "kvm/mutex.h"
 #include "kvm/util.h"
 #include "kvm/kvm.h"
@@ -11,23 +10,23 @@
 #include "kvm/ioeventfd.h"
 #include "kvm/guest_compat.h"
 #include "kvm/virtio-pci.h"
+#include "kvm/virtio.h"
 
 #include <linux/virtio_ring.h>
 #include <linux/virtio_blk.h>
-
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/types.h>
 #include <pthread.h>
 
 #define VIRTIO_BLK_MAX_DEV		4
-#define NUM_VIRT_QUEUES			1
 
-#define VIRTIO_BLK_QUEUE_SIZE		128
 /*
  * the header and status consume too entries
  */
 #define DISK_SEG_MAX			(VIRTIO_BLK_QUEUE_SIZE - 2)
+#define VIRTIO_BLK_QUEUE_SIZE		128
+#define NUM_VIRT_QUEUES			1
 
 struct blk_dev_req {
 	struct list_head		list;
@@ -84,8 +83,8 @@ void virtio_blk_complete(void *param, long len)
 	u8 *status;
 
 	/* status */
-	status			= req->iov[req->out + req->in - 1].iov_base;
-	*status			= (len < 0) ? VIRTIO_BLK_S_IOERR : VIRTIO_BLK_S_OK;
+	status	= req->iov[req->out + req->in - 1].iov_base;
+	*status	= (len < 0) ? VIRTIO_BLK_S_IOERR : VIRTIO_BLK_S_OK;
 
 	mutex_lock(&bdev->mutex);
 	virt_queue__set_used_elem(req->vq, req->head, len);

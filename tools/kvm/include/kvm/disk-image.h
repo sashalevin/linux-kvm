@@ -46,6 +46,9 @@ struct disk_image {
 	void				*priv;
 	void				*disk_req_cb_param;
 	void				(*disk_req_cb)(void *param, long len);
+	bool				async;
+	int				evt;
+	io_context_t			ctx;
 };
 
 struct disk_image *disk_image__open(const char *filename, bool readonly);
