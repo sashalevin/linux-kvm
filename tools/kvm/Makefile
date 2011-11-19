@@ -83,6 +83,7 @@ OBJS	+= virtio/9p-pdu.o
 OBJS	+= hw/vesa.o
 OBJS	+= hw/i8042.o
 OBJS	+= hw/pci-shmem.o
+OBJS	+= hw/assigned-dev.o
 OBJS	+= kvm-ipc.o
 
 FLAGS_BFD := $(CFLAGS) -lbfd

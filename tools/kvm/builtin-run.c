@@ -31,6 +31,7 @@
 #include "kvm/guest_compat.h"
 #include "kvm/pci-shmem.h"
 #include "kvm/kvm-ipc.h"
+#include "kvm/assigned-dev.h"
 
 #include <linux/types.h>
 
@@ -420,6 +421,10 @@ static const struct option options[] = {
 	OPT_CALLBACK('\0', "tty", NULL, "tty id",
 		     "Remap guest TTY into a pty on the host",
 		     tty_parser),
+	OPT_CALLBACK('a', "assign", NULL,
+		     "[seg=segnr][bus=busnr][dev=devfn][guest_int=mode][host_int=mode]",
+		     "Assign a PCI device to the guest",
+		     assigned_dev__parser),
 
 	OPT_GROUP("Kernel options:"),
 	OPT_STRING('k', "kernel", &kernel_filename, "kernel",
@@ -948,6 +953,8 @@ int kvm_cmd_run(int argc, const char **argv, const char *prefix)
 
 	pci_shmem__init(kvm);
 
+	assigned_dev__init(kvm);
+
 	if (vnc || sdl)
 		fb = vesa__init(kvm);
 
@@ -984,6 +991,8 @@ int kvm_cmd_run(int argc, const char **argv, const char *prefix)
 		if (ret != NULL)
 			exit_code = 1;
 	}
+
+	assigned_dev__free(kvm);
 
 	compat__print_all_messages();
 
