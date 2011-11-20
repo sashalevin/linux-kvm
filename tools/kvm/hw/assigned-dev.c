@@ -138,10 +138,6 @@ static int assigned_dev__deassign_device(struct kvm *kvm, struct assigned_dev *d
 {
 	int r;
 
-	r = ioctl(kvm->vm_fd, KVM_DEASSIGN_DEV_IRQ, &dev->kvm_assigned_irq);
-	if (r)
-		perror("KVM_DEASSIGN_DEV_IRQ failed");
-
 	r = ioctl(kvm->vm_fd, KVM_DEASSIGN_PCI_DEVICE, &dev->kvm_assigned_dev);
 	if (r)
 		perror("KVM_DEASSIGN_DEV_IRQ failed");
