@@ -6,10 +6,8 @@
 #include <sys/ioctl.h>
 #include <linux/kernel.h>
 
-#define ASSIGNED_DEV_MAX_DEVICES 16
-
 static u32 assigned_dev_ids;
-struct assigned_dev devs[ASSIGNED_DEV_MAX_DEVICES];
+static LIST_HEAD(devs);
 
 static int assigned_dev__set_param(struct assigned_dev *dev, const char *param, const char *val)
 {
@@ -55,11 +53,12 @@ int assigned_dev__parser(const struct option *opt, const char *arg, int unset)
 	bool on_cmd = true;
 	int r;
 
-	if (assigned_dev_ids >= ASSIGNED_DEV_MAX_DEVICES)
+	dev = malloc(sizeof(*dev));
+	if (dev == NULL)
 		return -ENOMEM;
 
-	dev = &devs[assigned_dev_ids];
-	dev->kvm_assigned_dev.assigned_dev_id = dev->kvm_assigned_irq.assigned_dev_id = assigned_dev_ids;
+	dev->kvm_assigned_dev.assigned_dev_id =
+		dev->kvm_assigned_irq.assigned_dev_id = assigned_dev_ids;
 	
 
 	r = -ENOMEM;
@@ -83,10 +82,13 @@ int assigned_dev__parser(const struct option *opt, const char *arg, int unset)
 	};
 
 	r = 0;
+	list_add(&dev->list, &devs);
 	assigned_dev_ids++;
 
 fail:
 	free(buff);
+	if (r)
+		free(dev);
 
 	return r;
 }
@@ -119,16 +121,16 @@ fail:
 
 int assigned_dev__init(struct kvm *kvm)
 {
-	u32 i;
+	struct assigned_dev *dev;
 
-	for (i = 0; i < assigned_dev_ids; i++) {
+	list_for_each_entry(dev, &devs, list) {
 		int r;
 
-		r = assigned_dev__assign_device(kvm, &devs[i]);
+		r = assigned_dev__assign_device(kvm, dev);
 		die("Failed assigning device. Bus: %u Seg: %u Dev: %u",
-			devs[i].kvm_assigned_dev.busnr,
-			devs[i].kvm_assigned_dev.segnr,
-			devs[i].kvm_assigned_dev.devfn);
+			dev->kvm_assigned_dev.busnr,
+			dev->kvm_assigned_dev.segnr,
+			dev->kvm_assigned_dev.devfn);
 	}
 
 	return 0;
@@ -147,10 +149,12 @@ static int assigned_dev__deassign_device(struct kvm *kvm, struct assigned_dev *d
 
 int assigned_dev__free(struct kvm *kvm)
 {
-	u32 i;
+	struct assigned_dev *dev, *dev2;
 
-	for (i = 0; i < assigned_dev_ids; i++)
-		assigned_dev__deassign_device(kvm, &devs[i]);
+	list_for_each_entry_safe(dev, dev2, &devs, list) {
+		assigned_dev__deassign_device(kvm, dev);
+		free(dev);
+	}
 
 	return 0;
 }
