@@ -40,7 +40,10 @@ static int assigned_dev__set_param(struct assigned_dev *dev, const char *param, 
 
 		dev->kvm_assigned_irq.flags |= KVM_DEV_IRQ_HOST_INTX;
 		dev->kvm_assigned_irq.host_irq = strtoul(val, NULL, 0);
-	}	
+	} else {
+		pr_warning("Unknown parameter: %s\n", param);
+		return -EINVAL;
+	}
 	
 	return 0;
 }
@@ -95,12 +98,14 @@ static int assigned_dev__assign_device(struct kvm *kvm, struct assigned_dev *dev
 	r = ioctl(kvm->vm_fd, KVM_ASSIGN_PCI_DEVICE, &dev->kvm_assigned_dev);
 	if (r < 0) {
 		err = errno;
+		perror("KVM_ASSIGN_PCI_DEVICE failed");
 		goto fail;
 	}
 
 	r = ioctl(kvm->vm_fd, KVM_ASSIGN_DEV_IRQ, &dev->kvm_assigned_irq);
 	if (r < 0) {
 		err = errno;
+		perror("KVM_ASSIGN_DEV_IRQ failed");
 		goto fail_deassign;
 	}
 
@@ -116,16 +121,30 @@ int assigned_dev__init(struct kvm *kvm)
 {
 	u32 i;
 
-	for (i = 0; i < assigned_dev_ids; i++)
-		assigned_dev__assign_device(kvm, &devs[i]);
+	for (i = 0; i < assigned_dev_ids; i++) {
+		int r;
+
+		r = assigned_dev__assign_device(kvm, &devs[i]);
+		die("Failed assigning device. Bus: %u Seg: %u Dev: %u",
+			devs[i].kvm_assigned_dev.busnr,
+			devs[i].kvm_assigned_dev.segnr,
+			devs[i].kvm_assigned_dev.devfn);
+	}
 
 	return 0;
 }
 
 static int assigned_dev__deassign_device(struct kvm *kvm, struct assigned_dev *dev)
 {
-	ioctl(kvm->vm_fd, KVM_DEASSIGN_DEV_IRQ, &dev->kvm_assigned_irq);
-	ioctl(kvm->vm_fd, KVM_DEASSIGN_PCI_DEVICE, &dev->kvm_assigned_dev);
+	int r;
+
+	r = ioctl(kvm->vm_fd, KVM_DEASSIGN_DEV_IRQ, &dev->kvm_assigned_irq);
+	if (r)
+		perror("KVM_DEASSIGN_DEV_IRQ failed");
+
+	r = ioctl(kvm->vm_fd, KVM_DEASSIGN_PCI_DEVICE, &dev->kvm_assigned_dev);
+	if (r)
+		perror("KVM_DEASSIGN_DEV_IRQ failed");
 
 	return 0;
 }
